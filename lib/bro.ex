@@ -1,6 +1,6 @@
 defmodule Bro do
   @doc """
-  Defines the list of Erlang headers that will be imported on this module. 
+  Defines the list of Erlang headers that will be imported on this module.
 
       extractHeaders ["path_to_header/header.hrl", "path_to_header2/header2.hrl", ...]
 
@@ -14,11 +14,12 @@ defmodule Bro do
     {allDefrecords, allConverters} =
       modules
       |> Enum.reduce(
-        {[], []}, 
+        {[], []},
         fn filepath, {allDefrecords, allConverters} ->
           {modDefrecords, modConverters} = extractHeader(filepath)
           {modDefrecords ++ allDefrecords, modConverters ++ allConverters}
-        end)
+        end
+      )
 
     quote do
       defmodule Records do
@@ -31,12 +32,15 @@ defmodule Bro do
         import Records
 
         defp struct_value(:undefined), do: nil
+
         defp struct_value(val) when is_list(val) do
           Enum.map(val, &struct_value/1)
         end
+
         defp struct_value(val) when Record.is_record(val) do
           to_struct(val) || val
         end
+
         defp struct_value(val), do: val
 
         unquote_splicing(allConverters)
@@ -60,7 +64,7 @@ defmodule Bro do
 
     modConverters =
       for {recordName, fields} <- extractedRecords do
-        structName = 
+        structName =
           recordName
           |> to_string()
           |> String.capitalize()
@@ -70,10 +74,9 @@ defmodule Bro do
         kv_rec2struct =
           for {key, _defaultVal} <- fields do
             {key,
-              quote do
-                struct_value(unquote(recordName)(record, unquote(key)))
-              end
-            }
+             quote do
+               struct_value(unquote(recordName)(record, unquote(key)))
+             end}
           end
 
         quote do
@@ -86,12 +89,12 @@ defmodule Bro do
             kvs =
               for {key, _dv} <- unquote(Macro.escape(fields)) do
                 {key,
-                  case Map.get(struct, key) do
-                    nil -> :undefined
-                    val -> val
-                  end
-                }
+                 case Map.get(struct, key) do
+                   nil -> :undefined
+                   val -> val
+                 end}
               end
+
             unquote(recordName)(kvs)
           end
 
