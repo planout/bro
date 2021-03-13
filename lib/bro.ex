@@ -79,15 +79,23 @@ defmodule Bro do
              end}
           end
 
+        mapFields =
+          fields
+          |> Macro.escape()
+          |> Enum.map(fn
+            {k, :undefined} -> {k, nil}
+            kv -> kv
+          end)
+
         quote do
           defmodule unquote(structName) do
             @moduledoc false
-            defstruct unquote(Macro.escape(fields))
+            defstruct unquote(mapFields)
           end
 
           def to_record(%unquote(structName){} = struct) do
             kvs =
-              for {key, _dv} <- unquote(Macro.escape(fields)) do
+              for {key, _dv} <- unquote(mapFields) do
                 {key,
                  case Map.get(struct, key) do
                    nil -> :undefined
