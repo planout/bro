@@ -1,0 +1,5 @@
+-record(account,
+        {
+         name = <<"">>,
+         host = <<"">>
+        }).
