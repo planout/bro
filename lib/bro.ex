@@ -2,15 +2,15 @@ defmodule Bro do
   @doc """
   Defines the list of Erlang headers that will be imported on this module.
 
-      extractHeaders ["path_to_header/header.hrl", "path_to_header2/header2.hrl", ...]
+      use Bro, ["path_to_header/header.hrl", "path_to_header2/header2.hrl", ...]
 
   This will create two modules:
 
   - Records: Inside this umbrella module, there will be as many sub-modules as records present in all the headers. Each sub-module will define the record with `Record.defrecord`.
   - Structs: This module will contain all the Elixir module definitions as submodules, as well as the conversion functions (to_struct/1, to_record/1). The Elixir modules will be named as the capitalized version of the record (e.g., the `sasl_abort` record will be mapped to the `Sasl_abort` struct).
   """
-  @spec defheaders([Path.t()]) :: none
-  defmacro defheaders(modules) do
+  @spec __using__([Path.t()]) :: none
+  defmacro __using__(modules) do
     {allDefrecords, allConverters} =
       modules
       |> Enum.reduce(
