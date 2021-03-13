@@ -71,6 +71,17 @@ defmodule Bro do
           |> String.to_atom()
           |> (fn x -> {:__aliases__, [alias: false], [x]} end).()
 
+        kv_struct2rec =
+          for {key, _defaultVal} <- fields do
+            {key,
+             quote do
+               case Map.get(struct, unquote(key)) do
+                 nil -> :undefined
+                 val -> val
+               end
+             end}
+          end
+
         kv_rec2struct =
           for {key, _defaultVal} <- fields do
             {key,
@@ -94,16 +105,7 @@ defmodule Bro do
           end
 
           def to_record(%unquote(structName){} = struct) do
-            kvs =
-              for {key, _dv} <- unquote(mapFields) do
-                {key,
-                 case Map.get(struct, key) do
-                   nil -> :undefined
-                   val -> val
-                 end}
-              end
-
-            unquote(recordName)(kvs)
+            unquote(recordName)(unquote(kv_struct2rec))
           end
 
           def to_struct(unquote(recordName)() = record) do

@@ -17,4 +17,11 @@ defmodule BroTest do
     assert %Structs.Message{} == Records.message() |> Structs.to_struct()
     assert %Structs.Account{} == Records.account() |> Structs.to_struct()
   end
+
+  test "Empty struct->record conversion" do
+    require Records
+
+    assert %Structs.Message{} |> Structs.to_record() == Records.message()
+    assert %Structs.Account{} |> Structs.to_record() == Records.account()
+  end
 end
