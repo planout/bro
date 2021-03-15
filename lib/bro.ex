@@ -11,7 +11,7 @@ defmodule Bro do
   This will create two modules:
 
   - Records: Inside this umbrella module, there will be as many sub-modules as records present in all the headers. Each sub-module will define the record with `Record.defrecord`.
-  - Structs: This module will contain all the Elixir module definitions as submodules, as well as the conversion functions (to_struct/1, to_record/1). The Elixir modules will be named as the capitalized version of the record (e.g., the `sasl_abort` record will be mapped to the `Sasl_abort` struct).
+  - Structs: This module will contain all the Elixir module definitions as submodules, as well as the conversion functions (to_struct/1, to_record/1). The Elixir modules will be named as the camelized version of the record (e.g., the `sasl_abort` record will be mapped to the `SaslAbort` struct).
   """
   @spec __using__([Path.t() | {Path.t(), keyword()}]) :: none
   defmacro __using__(modules) do
