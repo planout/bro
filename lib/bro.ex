@@ -78,7 +78,7 @@ defmodule Bro do
         structName =
           recordName
           |> to_string()
-          |> String.capitalize()
+          |> Macro.camelize()
           |> String.to_atom()
           |> (fn x -> {:__aliases__, [alias: false], [x]} end).()
 
