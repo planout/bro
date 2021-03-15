@@ -4,12 +4,19 @@ defmodule BroTest do
 
   defmodule Msg do
     use Bro, [
-      "test/messages.hrl",
+      {"test/messages.hrl", only: [:message]},
       "test/accounts.hrl"
     ]
   end
 
   alias Msg.{Records, Structs}
+
+  test "Check only exported records are defined" do
+    require Records
+
+    assert Keyword.has_key?(Records.__info__(:macros), :message) == true
+    assert Keyword.has_key?(Records.__info__(:macros), :not_exported_record) == false
+  end
 
   test "Empty record->struct conversion" do
     require Records
