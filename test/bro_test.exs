@@ -5,7 +5,11 @@ defmodule BroTest do
   defmodule Msg do
     use Bro, [
       {"test/messages.hrl", only: [:message]},
-      "test/accounts.hrl"
+      "test/accounts.hrl",
+
+      # This header defines a 'mysterious' record, which makes Bro crash, apparently, because of a
+      # bug in the Record module. For debugging purposes, export :mysterious to trigger the error.
+      {"test/keywords.hrl", only: [:normal]}
     ]
   end
 
