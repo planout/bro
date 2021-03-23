@@ -57,13 +57,20 @@ defmodule Bro do
 
   @spec extractHeader(Path.t()) :: none
   defp extractHeader(header) do
-    extractedRecords =
+    {filePath, opts} =
       case header do
-        {filePath, [only: only]} ->
-          only
-          |> Enum.map(& {&1, Record.extract(&1, from: filePath)})
-        filePath ->
+        {_filePath, _opts} -> header
+        filePath -> {filePath, []}
+      end
+
+    extractedRecords =
+      case opts[:only] do
+        nil ->
           Record.extract_all(from: filePath)
+
+        only ->
+          only
+          |> Enum.map(&{&1, Record.extract(&1, from: filePath)})
       end
 
     modDefrecords =
