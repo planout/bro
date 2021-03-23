@@ -1,5 +1,5 @@
 -record(account,
         {
          name = <<"">>,
-         host = <<"">>
+         host = undefined
         }).

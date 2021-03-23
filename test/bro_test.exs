@@ -2,38 +2,47 @@ defmodule BroTest do
   use ExUnit.Case
   doctest Bro
 
-  defmodule Msg do
-    use Bro, [
-      {"test/messages.hrl", only: [:message]},
-      "test/accounts.hrl",
-      {"test/custom.hrl", only: [:point], only_record: [:point]},
+  defmodule TestMod do
+    import Bro
 
-      # This header defines a 'mysterious' record, which makes Bro crash, apparently, because of a
-      # bug in the Record module. For debugging purposes, export :mysterious to trigger the error.
-      {"test/keywords.hrl", only: [:normal]}
-    ]
+    defheaders do
+      defheader("test/messages.hrl", records: [:message])
+      defheader("test/accounts.hrl")
+      defheader("test/custom.hrl", records: [:point], converters: [])
+
+      # This header defines a 'mysterious' record, which defines a tricky 'fn' field
+      defheader("test/keywords.hrl", records: [:normal, :mysterious])
+    end
+
   end
 
-  alias Msg.{Records, Structs}
+  alias TestMod.{Message, Account}
 
   test "Check only exported records are defined" do
-    require Records
-
-    assert Keyword.has_key?(Records.__info__(:macros), :message) == true
-    assert Keyword.has_key?(Records.__info__(:macros), :not_exported_record) == false
+    assert Keyword.has_key?(Message.__info__(:macros), :message) == true
+    assert Keyword.has_key?(Message.__info__(:macros), :not_exported_record) == false
   end
 
   test "Empty record->struct conversion" do
-    require Records
+    require TestMod.{Message, Account}
 
-    assert %Structs.Message{} == Records.message() |> Structs.to_struct()
-    assert %Structs.Account{} == Records.account() |> Structs.to_struct()
+    assert %Message{} == Message.message() |> TestMod.from_record()
+    assert %Account{} == Account.account() |> TestMod.from_record()
   end
 
   test "Empty struct->record conversion" do
-    require Records
+    require TestMod.{Message, Account}
 
-    assert %Structs.Message{} |> Structs.to_record() == Records.message()
-    assert %Structs.Account{} |> Structs.to_record() == Records.account()
+    assert %Message{} |> TestMod.to_record() == Message.message()
+    assert %Account{} |> TestMod.to_record() == Account.account()
+  end
+
+  test "Nil-undefined conversion" do
+    require TestMod.Account
+
+    assert %Account{name: "gramos", host: nil} |> TestMod.to_record() ==
+      Account.account(name: "gramos", host: :undefined)
+    assert %Account{name: "gramos", host: nil} ==
+      Account.account(name: "gramos", host: :undefined) |> TestMod.from_record()
   end
 end

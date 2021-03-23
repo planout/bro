@@ -1,144 +1,109 @@
 defmodule Bro do
-  @doc """
-  Defines the list of Erlang headers that will be imported on this module.
-
-    use Bro, [
-      {"path_to_header/header.hrl", only: [:rec1, :rec2]},
-      "path_to_header2/header2.hrl",
-      ...
-    ]
-
-  This will create two modules:
-
-  - Records: Inside this umbrella module, there will be as many sub-modules as records present in all the headers. Each sub-module will define the record with `Record.defrecord`.
-  - Structs: This module will contain all the Elixir module definitions as submodules, as well as the conversion functions (to_struct/1, to_record/1). The Elixir modules will be named as the camelized version of the record (e.g., the `sasl_abort` record will be mapped to the `SaslAbort` struct).
-  """
-  @spec __using__([Path.t() | {Path.t(), keyword()}]) :: none
-  defmacro __using__(modules) do
-
-    {all_defrecords, all_converters} =
-      modules
-      |> Enum.reduce(
-        {[], []},
-        fn filepath, {all_defrecords, all_converters} ->
-          {mod_defrecords, mod_converters} = extract_header(filepath)
-          {mod_defrecords ++ all_defrecords, mod_converters ++ all_converters}
-        end
-      )
-
+  defmacro defheaders([do: expr]) do
     quote do
-      defmodule Records do
-        require Record
-        unquote_splicing(all_defrecords)
+      require Record
+
+      unquote(expr)
+
+      def from_record(xs) when is_list(xs), do: Enum.map(xs, &from_record/1)
+      def from_record(:undefined), do: nil
+      def from_record(x), do: x
+
+      def to_record(xs) when is_list(xs), do: Enum.map(xs, &to_record/1)
+      def to_record(nil), do: :undefined
+      def to_record(x), do: x
+    end
+  end
+
+  @spec defheader(Path.t(), list()) :: none
+  defmacro defheader(header, opts \\ []) do
+    converters = opts[:converters] || nil
+
+    extracted_records =
+      case opts[:records] do
+        nil ->
+          Record.extract_all(from: header)
+
+        only ->
+          only
+          |> Enum.map(&{&1, Record.extract(&1, from: header)})
       end
 
-      defmodule Structs do
-        require Record
-        import Records
-
-        defp struct_value(:undefined), do: nil
-
-        defp struct_value(val) when is_list(val) do
-          Enum.map(val, &struct_value/1)
-        end
-
-        defp struct_value(val) when Record.is_record(val) do
-          to_struct(val) || val
-        end
-
-        defp struct_value(val), do: val
-
-        unquote_splicing(all_converters)
-
-        def to_record(_), do: nil
-        def to_struct(_), do: nil
+    for {record_name, _fields} = record <- extracted_records do
+      quote do
+        defrec(unquote(record),
+          unquote(converters == nil || record_name in converters))
       end
     end
   end
 
-  @spec extract_header(Path.t()) :: none
-  defp extract_header(header) do
-    {file_path, opts} =
-      case header do
-        {_file_path, _opts} -> header
-        file_path -> {file_path, []}
+  defp nonclashing_var(key) do
+    Macro.var(String.to_atom("_" <> Atom.to_string(key)), __MODULE__)
+  end
+
+  defmacro defrec({record_name, fields}, converters) do
+    module_name =
+      record_name
+      |> to_string()
+      |> Macro.camelize()
+      |> String.to_atom()
+      |> (fn x -> {:__aliases__, [alias: false], [x]} end).()
+
+    field_vars =
+      for {key, _default_val} <- fields do
+        {key, nonclashing_var(key)}
       end
 
-    only_record = opts[:only_record] || []
-
-    extracted_records =
-      case opts[:only] do
-        nil ->
-          Record.extract_all(from: file_path)
-
-        only ->
-          only
-          |> Enum.map(&{&1, Record.extract(&1, from: file_path)})
+    {kv_struct2rec, kv_rec2struct} =
+      for {key, var} <- field_vars do
+        {
+          quote do
+            to_record(unquote(var))
+          end,
+          {key,
+            quote do
+              from_record(unquote(var))
+            end}
+        }
       end
+      |> Enum.unzip()
 
-    convertible_records =
-      extracted_records
-      |> Enum.filter(fn {record_name, _fields} -> record_name not in only_record end)
+    map_fields =
+      fields
+      |> Macro.escape()
+      |> Enum.map(fn
+        {k, :undefined} -> {k, nil}
+        kv -> kv
+      end)
 
-    mod_defrecords =
-      for {record_name, fields} <- extracted_records do
-        quote do
-          Record.defrecord(unquote(record_name), unquote(Macro.escape(fields)))
-        end
-      end
-
-    mod_converters =
-      for {record_name, fields} <- convertible_records do
-        struct_name =
-          record_name
-          |> to_string()
-          |> Macro.camelize()
-          |> String.to_atom()
-          |> (fn x -> {:__aliases__, [alias: false], [x]} end).()
-
-        kv_struct2rec =
-          for {key, _default_val} <- fields do
-            {key,
-             quote do
-               case Map.get(struct, unquote(key)) do
-                 nil -> :undefined
-                 val -> val
-               end
-             end}
-          end
-
-        kv_rec2struct =
-          for {key, _default_val} <- fields do
-            {key,
-             quote do
-               struct_value(unquote(record_name)(record, unquote(key)))
-             end}
-          end
-
-        map_fields =
-          fields
-          |> Macro.escape()
-          |> Enum.map(fn
-            {k, :undefined} -> {k, nil}
-            kv -> kv
-          end)
-
-        quote do
-          defmodule unquote(struct_name) do
-            @moduledoc false
+    {defstruct_code, converters_code} =
+      if converters do
+        {
+          quote do
             defstruct unquote(map_fields)
+          end,
+        quote do
+          def from_record({unquote(record_name), unquote_splicing(Keyword.values(field_vars))}) do
+            struct(unquote(module_name), unquote(kv_rec2struct))
           end
 
-          def to_record(%unquote(struct_name){} = struct) do
-            unquote(record_name)(unquote(kv_struct2rec))
-          end
-
-          def to_struct(unquote(record_name)() = record) do
-            struct(unquote(struct_name), unquote(kv_rec2struct))
+          def to_record(%unquote(module_name){unquote_splicing(field_vars)}) do
+            {unquote(record_name), unquote_splicing(kv_struct2rec)}
           end
         end
+        }
+        else
+        {quote do end, quote do end}
       end
 
-    {mod_defrecords, mod_converters}
+    quote do
+      defmodule unquote(module_name) do
+        @moduledoc false
+        Record.defrecord(unquote(record_name), unquote(Macro.escape(fields)))
+        unquote(defstruct_code)
+      end
+
+      unquote(converters_code)
+    end
   end
 end
