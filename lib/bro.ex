@@ -15,20 +15,21 @@ defmodule Bro do
   """
   @spec __using__([Path.t() | {Path.t(), keyword()}]) :: none
   defmacro __using__(modules) do
-    {allDefrecords, allConverters} =
+
+    {all_defrecords, all_converters} =
       modules
       |> Enum.reduce(
         {[], []},
-        fn filepath, {allDefrecords, allConverters} ->
-          {modDefrecords, modConverters} = extractHeader(filepath)
-          {modDefrecords ++ allDefrecords, modConverters ++ allConverters}
+        fn filepath, {all_defrecords, all_converters} ->
+          {mod_defrecords, mod_converters} = extract_header(filepath)
+          {mod_defrecords ++ all_defrecords, mod_converters ++ all_converters}
         end
       )
 
     quote do
       defmodule Records do
         require Record
-        unquote_splicing(allDefrecords)
+        unquote_splicing(all_defrecords)
       end
 
       defmodule Structs do
@@ -47,7 +48,7 @@ defmodule Bro do
 
         defp struct_value(val), do: val
 
-        unquote_splicing(allConverters)
+        unquote_splicing(all_converters)
 
         def to_record(_), do: nil
         def to_struct(_), do: nil
@@ -55,42 +56,42 @@ defmodule Bro do
     end
   end
 
-  @spec extractHeader(Path.t()) :: none
-  defp extractHeader(header) do
-    {filePath, opts} =
+  @spec extract_header(Path.t()) :: none
+  defp extract_header(header) do
+    {file_path, opts} =
       case header do
-        {_filePath, _opts} -> header
-        filePath -> {filePath, []}
+        {_file_path, _opts} -> header
+        file_path -> {file_path, []}
       end
 
-    extractedRecords =
+    extracted_records =
       case opts[:only] do
         nil ->
-          Record.extract_all(from: filePath)
+          Record.extract_all(from: file_path)
 
         only ->
           only
-          |> Enum.map(&{&1, Record.extract(&1, from: filePath)})
+          |> Enum.map(&{&1, Record.extract(&1, from: file_path)})
       end
 
-    modDefrecords =
-      for {recordName, fields} <- extractedRecords do
+    mod_defrecords =
+      for {record_name, fields} <- extracted_records do
         quote do
-          Record.defrecord(unquote(recordName), unquote(Macro.escape(fields)))
+          Record.defrecord(unquote(record_name), unquote(Macro.escape(fields)))
         end
       end
 
-    modConverters =
-      for {recordName, fields} <- extractedRecords do
-        structName =
-          recordName
+    mod_converters =
+      for {record_name, fields} <- extracted_records do
+        struct_name =
+          record_name
           |> to_string()
           |> Macro.camelize()
           |> String.to_atom()
           |> (fn x -> {:__aliases__, [alias: false], [x]} end).()
 
         kv_struct2rec =
-          for {key, _defaultVal} <- fields do
+          for {key, _default_val} <- fields do
             {key,
              quote do
                case Map.get(struct, unquote(key)) do
@@ -101,14 +102,14 @@ defmodule Bro do
           end
 
         kv_rec2struct =
-          for {key, _defaultVal} <- fields do
+          for {key, _default_val} <- fields do
             {key,
              quote do
-               struct_value(unquote(recordName)(record, unquote(key)))
+               struct_value(unquote(record_name)(record, unquote(key)))
              end}
           end
 
-        mapFields =
+        map_fields =
           fields
           |> Macro.escape()
           |> Enum.map(fn
@@ -117,21 +118,21 @@ defmodule Bro do
           end)
 
         quote do
-          defmodule unquote(structName) do
+          defmodule unquote(struct_name) do
             @moduledoc false
-            defstruct unquote(mapFields)
+            defstruct unquote(map_fields)
           end
 
-          def to_record(%unquote(structName){} = struct) do
-            unquote(recordName)(unquote(kv_struct2rec))
+          def to_record(%unquote(struct_name){} = struct) do
+            unquote(record_name)(unquote(kv_struct2rec))
           end
 
-          def to_struct(unquote(recordName)() = record) do
-            struct(unquote(structName), unquote(kv_rec2struct))
+          def to_struct(unquote(record_name)() = record) do
+            struct(unquote(struct_name), unquote(kv_rec2struct))
           end
         end
       end
 
-    {modDefrecords, modConverters}
+    {mod_defrecords, mod_converters}
   end
 end
