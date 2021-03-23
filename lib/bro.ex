@@ -64,6 +64,8 @@ defmodule Bro do
         file_path -> {file_path, []}
       end
 
+    only_record = opts[:only_record] || []
+
     extracted_records =
       case opts[:only] do
         nil ->
@@ -74,6 +76,10 @@ defmodule Bro do
           |> Enum.map(&{&1, Record.extract(&1, from: file_path)})
       end
 
+    convertible_records =
+      extracted_records
+      |> Enum.filter(fn {record_name, _fields} -> record_name not in only_record end)
+
     mod_defrecords =
       for {record_name, fields} <- extracted_records do
         quote do
@@ -82,7 +88,7 @@ defmodule Bro do
       end
 
     mod_converters =
-      for {record_name, fields} <- extracted_records do
+      for {record_name, fields} <- convertible_records do
         struct_name =
           record_name
           |> to_string()

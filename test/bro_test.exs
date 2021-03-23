@@ -6,6 +6,7 @@ defmodule BroTest do
     use Bro, [
       {"test/messages.hrl", only: [:message]},
       "test/accounts.hrl",
+      {"test/custom.hrl", only: [:point], only_record: [:point]},
 
       # This header defines a 'mysterious' record, which makes Bro crash, apparently, because of a
       # bug in the Record module. For debugging purposes, export :mysterious to trigger the error.
